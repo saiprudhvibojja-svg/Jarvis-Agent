@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>J.A.R.V.I.S. Core Widescreen HUD</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-color: #050510;
+      --primary-accent: #00d4ff;       /* Cyan */
+      --secondary-accent: #ff6b35;     /* Orange */
+      --tertiary-accent: #7b2fff;      /* Purple */
+      --success-color: #00ff88;        /* Green */
+      --warning-color: #ffaa00;        /* Amber */
+      --panel-bg: rgba(0, 10, 30, 0.85);
+      --border-style: 1px solid rgba(0, 212, 255, 0.4);
+      --font: 'Share Tech Mono', monospace;
+      --font-ui: 'Inter', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg-color);
+      background-image: 
+        radial-gradient(circle at center, rgba(0, 20, 60, 0.6) 0%, var(--bg-color) 100%);
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      color: #fff;
+      min-height: 100vh;
+      overflow: hidden;
+      text-shadow: 0 0 6px rgba(0, 212, 255, 0.3);
+      padding-top: 40px;
+    }
+
+    /* Scanline effect */
+    .scanline {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.25) 50%
+      ), linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.06),
+        rgba(0, 255, 0, 0.02),
+        rgba(0, 0, 255, 0.06)
+      );
+      background-size: 100% 3px, 3px 100%;
+      pointer-events: none;
+      z-index: 10000;
+      opacity: 0.45;
+    }
+
+    /* MIC PERMISSION BANNER */
+    .mic-banner {
+      display: none;
+      background: rgba(255, 107, 53, 0.25);
+      border: 1px solid var(--secondary-accent);
+      color: #ffeedd;
+      text-shadow: 0 0 8px var(--secondary-accent);
+      font-family: var(--font);
+      font-size: 12px;
+      padding: 8px;
+      text-align: center;
+      position: absolute;
+      top: 45px;
+      left: 12px;
+      right: 12px;
+      border-radius: 4px;
+      z-index: 10002;
+      box-shadow: 0 0 15px rgba(255, 107, 53, 0.4);
+      animation: banner-pulse 2s infinite alternate;
+    }
+
+    @keyframes banner-pulse {
+      0% { box-shadow: 0 0 5px rgba(255, 107, 53, 0.2); }
+      100% { box-shadow: 0 0 20px rgba(255, 107, 53, 0.6); }
+    }
+
+    /* HEADER */
+    .electron-titlebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 40px;
+      background: rgba(0, 5, 15, 0.95);
+      border-bottom: var(--border-style);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 10001;
+      backdrop-filter: blur(10px);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-dot {
+      width: 10px;
+      height: 10px;
+      background: var(--success-color);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--success-color);
+      animation: pulse-dot 1.5s infinite alternate;
+    }
+
+    @keyframes pulse-dot {
+      0% { opacity: 0.5; transform: scale(0.9); }
+      100% { opacity: 1; transform: scale(1.1); }
+    }
+
+    .header-center {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .header-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: 0.4em;
+      color: var(--primary-accent);
+      text-shadow: 0 0 15px var(--primary-accent);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .header-version {
+      font-size: 10px;
+      color: var(--secondary-accent);
+      text-shadow: 0 0 5px var(--secondary-accent);
+      letter-spacing: 0.1em;
+    }
+
+    /* 3 COLUMN GRID */
+    .hud-container {
+      display: grid;
+      grid-template-columns: 24% 48% 28%;
+      gap: 12px;
+      padding: 12px;
+      height: calc(100vh - 40px);
+      box-sizing: border-box;
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* FLOATING PANELS */
+    .panel {
+      background: var(--panel-bg);
+      border: var(--border-style);
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.15), inset 0 0 15px rgba(0, 212, 255, 0.02);
+      position: relative;
+      padding: 16px;
+      border-radius: 6px;
+      backdrop-filter: blur(12px);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .panel:hover {
+      box-shadow: 0 0 30px rgba(0, 212, 255, 0.35), inset 0 0 25px rgba(0, 212, 255, 0.05);
+      border-color: rgba(0, 212, 255, 0.6);
+    }
+
+    /* Corner Brackets */
+    .panel::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      background:
+        linear-gradient(to bottom, var(--primary-accent) 4px, transparent 4px) 0 0,
+        linear-gradient(to right, var(--primary-accent) 4px, transparent 4px) 0 0,
+        linear-gradient(to bottom, var(--primary-accent) 4px, transparent 4px) 100% 0,
+        linear-gradient(to left, var(--primary-accent) 4px, transparent 4px) 100% 0,
+        linear-gradient(to top, var(--primary-accent) 4px, transparent 4px) 0 100%,
+        linear-gradient(to right, var(--primary-accent) 4px, transparent 4px) 0 100%,
+        linear-gradient(to top, var(--primary-accent) 4px, transparent 4px) 100% 100%,
+        linear-gradient(to left, var(--primary-accent) 4px, transparent 4px) 100% 100%;
+      background-repeat: no-repeat;
+      background-size: 16px 16px;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .panel h3 {
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      color: var(--primary-accent);
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+      padding-bottom: 6px;
+      font-weight: 800;
+      text-transform: uppercase;
+      text-shadow: 0 0 6px var(--primary-accent);
+    }
+
+    /* COLUMNS */
+    .left-col, .center-col, .right-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .flex-1 {
+      flex: 1;
+    }
+
+    /* ==================== LEFT COLUMN ==================== */
+    .location-city {
+      font-size: 32px;
+      font-weight: bold;
+      color: var(--primary-accent);
+      text-shadow: 0 0 15px var(--primary-accent);
+      letter-spacing: 1px;
+    }
+    .location-sub {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: 2px;
+    }
+    .map-grid-container {
+      position: relative;
+      height: 60px;
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      background: radial-gradient(circle, rgba(0, 40, 80, 0.3) 0%, transparent 100%);
+      margin-top: 10px;
+      overflow: hidden;
+      border-radius: 4px;
+    }
+    .map-grid-overlay {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0, 212, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 212, 255, 0.05) 1px, transparent 1px);
+      background-size: 10px 10px;
+    }
+    .map-scan-line {
+      position: absolute;
+      left: 0; right: 0; height: 2px;
+      background: var(--primary-accent);
+      opacity: 0.6;
+      box-shadow: 0 0 8px var(--primary-accent);
+      animation: scan-grid 4s linear infinite;
+    }
+    @keyframes scan-grid {
+      0% { top: 0px; }
+      100% { top: 60px; }
+    }
+
+    .metric-row {
+      margin-bottom: 12px;
+    }
+    .metric-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      margin-bottom: 4px;
+      letter-spacing: 0.1em;
+    }
+    .metric-bar-bg {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .metric-bar-fill {
+      height: 100%;
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+
+    /* Active Workspace Profile */
+    .profile-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(0, 212, 255, 0.1);
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    .profile-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid var(--secondary-accent);
+      background: radial-gradient(circle, var(--secondary-accent) 0%, transparent 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: bold;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(255, 107, 53, 0.4);
+    }
+    .profile-details {
+      display: flex;
+      flex-direction: column;
+    }
+    .profile-name {
+      font-family: var(--font-ui);
+      font-size: 16px;
+      font-weight: bold;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+    .profile-title {
+      font-family: var(--font-ui);
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: 2px;
+    }
+    .skills-tags-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .skill-tag {
+      font-size: 9px;
+      background: rgba(0, 212, 255, 0.1);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      padding: 3px 8px;
+      border-radius: 4px;
+      color: var(--primary-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ==================== CENTER COLUMN ==================== */
+    .center-top-row {
+      display: flex;
+      gap: 10px;
+      height: 180px;
+      flex-shrink: 0;
+    }
+    .half-panel {
+      width: calc(50% - 5px);
+      height: 100%;
+    }
+    .activity-box {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 0;
+    }
+    .status-indicator {
+      font-size: 16px;
+      font-weight: bold;
+      color: var(--success-color);
+      text-shadow: 0 0 10px var(--success-color);
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+    .url-text {
+      font-size: 11px;
+      color: var(--warning-color);
+      text-shadow: 0 0 5px var(--warning-color);
+      word-break: break-all;
+      line-height: 1.4;
+    }
+    .screenshot-container {
+      position: relative;
+      flex: 1;
+      background: #000;
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .screenshot-container span {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    /* ORB REACTOR */
+    .orb-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 10px 0;
+      flex: 1;
+      min-height: 0;
+    }
+    .orb-visual {
+      position: relative;
+      width: 170px;
+      height: 170px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .orb-core {
+      width: 55px;
+      height: 55px;
+      background: radial-gradient(circle, #00d4ff 0%, rgba(123, 47, 255, 0.3) 70%, transparent 100%);
+      border-radius: 50%;
+      box-shadow: 0 0 35px #00d4ff, 0 0 15px #7b2fff;
+      animation: orb-pulse 2s ease-in-out infinite alternate;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: bold;
+      color: #fff;
+    }
+    @keyframes orb-pulse {
+      0% { transform: scale(0.92); opacity: 0.8; box-shadow: 0 0 20px #00d4ff, 0 0 10px #7b2fff; }
+      100% { transform: scale(1.08); opacity: 1; box-shadow: 0 0 45px #00d4ff, 0 0 25px #7b2fff; }
+    }
+    .orb-ring {
+      position: absolute;
+      border-radius: 50%;
+    }
+    .ring-1 {
+      width: 155px;
+      height: 155px;
+      border: 1px dashed rgba(0, 212, 255, 0.4);
+      border-top: 2.5px solid var(--primary-accent);
+      border-bottom: 2.5px solid var(--primary-accent);
+      animation: spin-clockwise 10s linear infinite;
+    }
+    .ring-2 {
+      width: 120px;
+      height: 120px;
+      border: 1px dashed rgba(255, 107, 53, 0.4);
+      border-left: 2px solid var(--secondary-accent);
+      border-right: 2px solid var(--secondary-accent);
+      animation: spin-counter 7s linear infinite;
+    }
+    .ring-3 {
+      width: 85px;
+      height: 85px;
+      border: 1.5px dashed var(--tertiary-accent);
+      animation: spin-clockwise 4s linear infinite;
+    }
+    @keyframes spin-clockwise {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes spin-counter {
+      0% { transform: rotate(360deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    .greeting-box {
+      text-align: center;
+      margin-top: 10px;
+    }
+    .hud-title {
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      color: var(--primary-accent);
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+    .greeting-text {
+      font-size: 15px;
+      color: #fff;
+      margin-top: 2px;
+      letter-spacing: 0.5px;
+    }
+    .response-text {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.85);
+      margin-top: 4px;
+      max-width: 460px;
+      line-height: 1.4;
+      text-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
+    }
+
+    /* CORE TERMINAL */
+    .terminal-panel h3 {
+      border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+      color: var(--success-color);
+      text-shadow: 0 0 6px var(--success-color);
+    }
+    .terminal-scroll {
+      flex: 1;
+      overflow-y: auto;
+      font-size: 11px;
+      color: var(--success-color);
+      text-shadow: 0 0 4px rgba(0, 255, 136, 0.4);
+      line-height: 1.5;
+    }
+
+    /* BOTTOM ROW: WHISPER + LOOP */
+    .center-bottom-row {
+      display: flex;
+      gap: 10px;
+      height: 120px;
+      flex-shrink: 0;
+    }
+    .whisper-panel, .decision-panel {
+      width: calc(50% - 5px);
+      height: 100%;
+    }
+    .whisper-waveform-box {
+      background: rgba(0, 5, 15, 0.6);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      border-radius: 4px;
+      height: 60px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .whisper-text {
+      font-size: 10px;
+      color: var(--primary-accent);
+      margin-top: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .flow-nodes {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid rgba(0, 212, 255, 0.1);
+      border-radius: 4px;
+      padding: 10px 6px;
+      margin-top: 4px;
+    }
+    .flow-node {
+      font-size: 9px;
+      font-weight: bold;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 4px 6px;
+      border-radius: 3px;
+      color: rgba(255, 255, 255, 0.5);
+      transition: all 0.3s;
+    }
+    .flow-node.active {
+      background: rgba(0, 212, 255, 0.15);
+      border-color: var(--primary-accent);
+      color: #fff;
+      box-shadow: 0 0 10px var(--primary-accent);
+      text-shadow: 0 0 3px #fff;
+    }
+    .flow-arrow {
+      font-size: 8px;
+      color: rgba(255, 255, 255, 0.2);
+    }
+    .flow-arrow.active {
+      color: var(--primary-accent);
+      text-shadow: 0 0 5px var(--primary-accent);
+    }
+    .decision-loop-state {
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.6);
+      text-align: center;
+      margin-top: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    /* INPUT BAR */
+    .input-bar-panel {
+      justify-content: center;
+    }
+    .input-wrap {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      gap: 10px;
+    }
+    .input-wrap input {
+      flex: 1;
+      background: rgba(0, 5, 15, 0.7);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 4px;
+      color: var(--primary-accent);
+      padding: 8px 12px;
+      font-family: var(--font);
+      font-size: 14px;
+      outline: none;
+      transition: all 0.3s;
+    }
+    .input-wrap input:focus {
+      border-color: var(--primary-accent);
+      box-shadow: 0 0 12px rgba(0, 212, 255, 0.35);
+    }
+    .send-btn {
+      background: transparent;
+      border: 1px solid var(--primary-accent);
+      border-radius: 4px;
+      color: var(--primary-accent);
+      font-family: var(--font);
+      font-size: 12px;
+      padding: 8px 18px;
+      cursor: pointer;
+      text-shadow: 0 0 5px var(--primary-accent);
+      box-shadow: 0 0 8px rgba(0, 212, 255, 0.1);
+      transition: all 0.3s;
+    }
+    .send-btn:hover {
+      background: rgba(0, 212, 255, 0.2);
+      box-shadow: 0 0 15px var(--primary-accent);
+    }
+    .mic-btn {
+      background: transparent;
+      border: 1px solid #7f8c8d;
+      border-radius: 4px;
+      color: #bdc3c7;
+      font-family: var(--font);
+      font-size: 12px;
+      padding: 8px 18px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .mic-btn.active {
+      border-color: var(--secondary-accent);
+      color: var(--secondary-accent);
+      box-shadow: 0 0 15px var(--secondary-accent);
+      text-shadow: 0 0 5px var(--secondary-accent);
+    }
+
+    /* ==================== RIGHT COLUMN ==================== */
+    .status-dots-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 5px;
+    }
+    .status-dot-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font);
+      font-size: 10px;
+    }
+    .dot-light {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #7f8c8d;
+      box-shadow: 0 0 5px #7f8c8d;
+      transition: all 0.3s;
+    }
+    .dot-light.green {
+      background: var(--success-color);
+      box-shadow: 0 0 10px var(--success-color);
+    }
+    .dot-light.yellow {
+      background: var(--warning-color);
+      box-shadow: 0 0 10px var(--warning-color);
+    }
+    .dot-light.red {
+      background: #ff3355;
+      box-shadow: 0 0 10px #ff3355;
+    }
+    .dot-label {
+      width: 130px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+    .dot-value {
+      font-size: 11px;
+      font-weight: bold;
+    }
+    .dot-value.green { color: var(--success-color); }
+    .dot-value.yellow { color: var(--warning-color); }
+    .dot-value.red { color: #ff3355; }
+
+    /* DIGITAL CLOCK */
+    .clock-time {
+      font-size: 48px;
+      text-shadow: 0 0 15px var(--primary-accent);
+      text-align: center;
+      font-family: var(--font);
+      font-weight: bold;
+      letter-spacing: 2px;
+      line-height: 1.1;
+      margin-top: 5px;
+    }
+    .clock-date {
+      font-size: 10px;
+      opacity: 0.8;
+      text-align: center;
+      margin-top: 2px;
+      letter-spacing: 1px;
+    }
+    .weather-info {
+      margin-top: 10px;
+      font-size: 11px;
+      text-align: center;
+      border-top: 1px solid rgba(0, 212, 255, 0.1);
+      padding-top: 6px;
+      color: var(--primary-accent);
+    }
+    .forecast-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      border-top: 1px dashed rgba(0, 212, 255, 0.15);
+      padding-top: 6px;
+    }
+    .forecast-day {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 9px;
+      opacity: 0.85;
+    }
+
+    /* SYSTEM LOG */
+    .system-log-scroll {
+      flex: 1;
+      overflow-y: auto;
+      font-family: var(--font);
+      font-size: 11px;
+      line-height: 1.5;
+      padding-right: 4px;
+    }
+    .system-log-scroll div {
+      margin-bottom: 4px;
+      border-left: 2px solid rgba(0, 212, 255, 0.15);
+      padding-left: 6px;
+      word-break: break-all;
+    }
+    .log-boot { color: var(--tertiary-accent); text-shadow: 0 0 4px var(--tertiary-accent); }
+    .log-user { color: var(--primary-accent); text-shadow: 0 0 4px var(--primary-accent); }
+    .log-jarvis { color: var(--secondary-accent); text-shadow: 0 0 4px var(--secondary-accent); }
+    .log-err { color: #ff3355; text-shadow: 0 0 4px #ff3355; }
+    .log-sys { color: #bdc3c7; }
+
+    /* DETAILED FLOWCHART */
+    .detailed-flowchart {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 2px;
+      margin-top: 5px;
+    }
+    .flow-step-box {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 5, 15, 0.4);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-family: var(--font);
+      font-size: 11px;
+      color: #fff;
+      transition: all 0.3s;
+    }
+    .flow-step-box.active {
+      border-color: var(--secondary-accent);
+      background: rgba(255, 107, 53, 0.12);
+      box-shadow: 0 0 12px rgba(255, 107, 53, 0.35);
+      color: var(--secondary-accent);
+    }
+    .flow-step-box.active .flow-step-desc {
+      color: #fff;
+    }
+    .flow-step-desc {
+      font-size: 9px;
+      opacity: 0.6;
+      margin-top: 2px;
+      line-height: 1.2;
+    }
+    .flow-connector {
+      display: flex;
+      justify-content: center;
+      height: 12px;
+    }
+    .dashed-line {
+      stroke: rgba(255, 255, 255, 0.2);
+      stroke-width: 2;
+      stroke-dasharray: 3 3;
+    }
+    .flow-connector.active .dashed-line {
+      stroke: var(--secondary-accent);
+      filter: drop-shadow(0 0 3px var(--secondary-accent));
+      animation: dashflow 1s linear infinite;
+    }
+    @keyframes dashflow {
+      to {
+        stroke-dashoffset: -6;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Bar -->
+  <div class="electron-titlebar">
+    <div class="header-left">
+      <div class="header-dot"></div>
+      <span class="header-version">STATION_ONLINE</span>
+    </div>
+    <div class="header-center">
+      <span class="header-title">J.A.R.V.I.S</span>
+    </div>
+    <div class="header-right">
+      <span class="header-version">HUD_CORE v1.2.0</span>
+    </div>
+  </div>
+
+  <!-- Scanline Screen Effects -->
+  <div class="scanline"></div>
+
+  <!-- Mic Permission Instruction Banner -->
+  <div id="micBanner" class="mic-banner">
+    ⚠️ Click the lock icon (🔒) in the address bar → Allow Microphone
+  </div>
+
+  <!-- main HUD Widescreen grid -->
+  <div class="hud-container">
+    <!-- ==================== LEFT COLUMN (24%) ==================== -->
+    <div class="left-col">
+      <!-- Location -->
+      <div class="panel" style="height: 135px; flex-shrink: 0;">
+        <h3>// SYSTEM LOCATION</h3>
+        <div class="location-city" id="locCity">LOCATING...</div>
+        <div class="location-sub" id="locCoords">00° 00' 00" N, 00° 00' 00" E</div>
+        
+        <div class="map-grid-container">
+          <div class="map-scan-line"></div>
+          <div class="map-grid-overlay"></div>
+        </div>
+      </div>
+
+      <!-- System Status metrics -->
+      <div class="panel" style="height: 200px; flex-shrink: 0;">
+        <h3>// METRIC MATRIX</h3>
+        <div class="metric-row">
+          <div class="metric-label"><span>CPU CORES</span><span id="cpuPctText">0%</span></div>
+          <div class="metric-bar-bg">
+            <div class="metric-bar-fill" id="cpuBarFill" style="width: 0%; background-color: var(--primary-accent); box-shadow: 0 0 8px var(--primary-accent);"></div>
+          </div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>RAM CAPACITY</span><span id="ramPctText">0%</span></div>
+          <div class="metric-bar-bg">
+            <div class="metric-bar-fill" id="ramBarFill" style="width: 0%; background-color: var(--secondary-accent); box-shadow: 0 0 8px var(--secondary-accent);"></div>
+          </div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-label"><span>NETWORK INTEGRITY</span><span id="netStatText" style="color: var(--success-color); text-shadow: 0 0 8px var(--success-color);">ONLINE</span></div>
+          <div class="metric-bar-bg">
+            <div class="metric-bar-fill" id="netBarFill" style="width: 100%; background-color: var(--success-color); box-shadow: 0 0 8px var(--success-color);"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Workspace Profile -->
+      <div class="panel flex-1">
+        <h3>// ACTIVE WORKSPACE</h3>
+        <div class="profile-card">
+          <div class="profile-avatar">S.P</div>
+          <div class="profile-details">
+            <div class="profile-name" id="profName">Sai Prudhvi</div>
+            <div class="profile-title" id="profTitle">Integration Architect</div>
+          </div>
+        </div>
+        <div class="skills-tags-container" id="profSkills">
+          <span class="skill-tag">Azure</span>
+          <span class="skill-tag">Python</span>
+          <span class="skill-tag">FastAPI</span>
+          <span class="skill-tag">Dynamics 365 BC</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CENTER COLUMN (48%) ==================== -->
+    <div class="center-col">
+      <!-- Browser + Vision top row -->
+      <div class="center-top-row">
+        <div class="panel half-panel">
+          <h3>// BROWSER AGENT</h3>
+          <div class="activity-box">
+            <div class="status-indicator" id="browserStatus">STANDBY</div>
+            <div class="url-text" id="browserUrl">Awaiting URL activity feed...</div>
+          </div>
+        </div>
+        <div class="panel half-panel">
+          <h3>// VISION SYSTEM</h3>
+          <div class="activity-box">
+            <div class="screenshot-container">
+              <img id="visionSnapshotImg" src="" style="display:none; width: 100%; height: 100%; object-fit: cover;" />
+              <span id="visionOverlayText">ARMED — SCAN CHANNELS READY</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Holographic Orb center reactor -->
+      <div class="orb-container">
+        <div class="orb-visual">
+          <div class="orb-core">J.A.R.V.I.S</div>
+          <div class="orb-ring ring-1"></div>
+          <div class="orb-ring ring-2"></div>
+          <div class="orb-ring ring-3"></div>
+        </div>
+        <div class="greeting-box">
+          <div class="hud-title">J.A.R.V.I.S. HUD Core</div>
+          <div class="greeting-text" id="greeting">Welcome back, Sir.</div>
+          <div class="response-text" id="lastResponse">Monitoring all system frameworks. Awaiting instructions.</div>
+        </div>
+      </div>
+
+      <!-- System Core Activity Terminal -->
+      <div class="panel terminal-panel" style="height: 200px; flex-shrink: 0;">
+        <h3>// SYSTEM CORE ACTIVITY</h3>
+        <div class="terminal-scroll" id="codeTerminal">
+          <div>> Neural core initialized.</div>
+          <div>> Websocket frame loaded.</div>
+          <div>> J.A.R.V.I.S. systems running clean.</div>
+        </div>
+      </div>
+
+      <!-- Whisper Audio Wave + cognitive horizontal Loop -->
+      <div class="center-bottom-row">
+        <div class="panel whisper-panel">
+          <h3>// WHISPER</h3>
+          <div class="whisper-waveform-box">
+            <canvas id="whisperWaveCanvas" width="220" height="60" style="width: 100%; height: 60px;"></canvas>
+          </div>
+          <div class="whisper-text" id="whisperTrans">Transcribing via Whisper...</div>
+        </div>
+        <div class="panel decision-panel">
+          <h3>// DECISION LOOP</h3>
+          <div class="flow-nodes">
+            <div class="flow-node" id="node-plan">PLAN</div>
+            <div class="flow-arrow" id="arrow-1">➡</div>
+            <div class="flow-node" id="node-act">ACT</div>
+            <div class="flow-arrow" id="arrow-2">➡</div>
+            <div class="flow-node" id="node-verify">VERIFY</div>
+            <div class="flow-arrow" id="arrow-3">➡</div>
+            <div class="flow-node" id="node-report">REPORT</div>
+          </div>
+          <div class="decision-loop-state" id="decisionLoopText">COGNITION: SLEEPING</div>
+        </div>
+      </div>
+
+      <!-- Interactive command bar -->
+      <div class="panel input-bar-panel" style="height: 55px; flex-shrink: 0;">
+        <div class="input-wrap">
+          <input type="text" id="commandInput" placeholder="Enter command, Sir..." />
+          <button type="button" id="sendBtn" class="send-btn">SEND</button>
+          <button type="button" id="micBtn" class="mic-btn">MIC</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== RIGHT COLUMN (28%) ==================== -->
+    <div class="right-col">
+      <!-- Status dots details -->
+      <div class="panel" style="height: 155px; flex-shrink: 0;">
+        <h3>// SYSTEM CHANNELS</h3>
+        <div class="status-dots-container">
+          <div class="status-dot-row">
+            <span class="dot-light green" id="dOnline"></span>
+            <span class="dot-label">SYSTEM STATE:</span>
+            <span class="dot-value green" id="vOnline">ONLINE</span>
+          </div>
+          <div class="status-dot-row">
+            <span class="dot-light green" id="dJarvis"></span>
+            <span class="dot-label">JARVIS INTEGRITY:</span>
+            <span class="dot-value green" id="vJarvis">STABLE</span>
+          </div>
+          <div class="status-dot-row">
+            <span class="dot-light yellow" id="dMic"></span>
+            <span class="dot-label">MICROPHONE FEED:</span>
+            <span class="dot-value yellow" id="vMic">STANDBY</span>
+          </div>
+          <div class="status-dot-row">
+            <span class="dot-light" id="dTts"></span>
+            <span class="dot-label">SYNTH VOICE OUT:</span>
+            <span class="dot-value" id="vTts">SILENT</span>
+          </div>
+          <div class="status-dot-row">
+            <span class="dot-light" id="dWake"></span>
+            <span class="dot-label">COGNITIVE WAKE:</span>
+            <span class="dot-value" id="vWake">STANDBY</span>
+          </div>
+          <div class="status-dot-row">
+            <span class="dot-light green" id="dApi"></span>
+            <span class="dot-label">LLM CORE API:</span>
+            <span class="dot-value green" id="vApi">STABLE</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Time parameters & Forecast -->
+      <div class="panel" style="height: 185px; flex-shrink: 0;">
+        <h3>// CHRONOLOGY</h3>
+        <div class="clock-time" id="clock">00:00:00</div>
+        <div class="clock-date" id="dateLine">MONDAY, 25 MAY 2026</div>
+        <div class="weather-info" id="weather">WEATHER: CLEAR — 28°C</div>
+        
+        <div class="forecast-row" id="forecastRow">
+          <!-- forecast icons dynamically injected -->
+        </div>
+      </div>
+
+      <!-- System scroll log -->
+      <div class="panel flex-1">
+        <h3>// SYSTEM CHRONOLOGY</h3>
+        <div class="system-log-scroll" id="systemLog">
+          <!-- dynamic entries here -->
+        </div>
+      </div>
+
+      <!-- Vertical Cognitive detailed steps -->
+      <div class="panel" style="height: 255px; flex-shrink: 0;">
+        <h3>// DETAIL COGNITION MATRIX</h3>
+        <div class="detailed-flowchart">
+          <div class="flow-step-box" id="node-plan-det">
+            <span class="step-icon">🧠</span> PLANNING STEP
+            <div class="flow-step-desc">Brainstorming approach & structuring tasks</div>
+          </div>
+          
+          <div class="flow-connector" id="conn-1">
+            <svg width="20" height="14" viewBox="0 0 20 14">
+              <line x1="10" y1="0" x2="10" y2="14" class="dashed-line" />
+            </svg>
+          </div>
+          
+          <div class="flow-step-box" id="node-act-det">
+            <span class="step-icon">🤖</span> ROBOTIC INTERACTION (ACT)
+            <div class="flow-step-desc">Operating Playwright / browser / API engines</div>
+          </div>
+          
+          <div class="flow-connector" id="conn-2">
+            <svg width="20" height="14" viewBox="0 0 20 14">
+              <line x1="10" y1="0" x2="10" y2="14" class="dashed-line" />
+            </svg>
+          </div>
+          
+          <div class="flow-step-box" id="node-verify-det">
+            <span class="step-icon">🔬</span> ALIGNMENT & VERIFICATION
+            <div class="flow-step-desc">Analyzing results, screenshots and proof matrices</div>
+          </div>
+          
+          <div class="flow-connector" id="conn-3">
+            <svg width="20" height="14" viewBox="0 0 20 14">
+              <line x1="10" y1="0" x2="10" y2="14" class="dashed-line" />
+            </svg>
+          </div>
+          
+          <div class="flow-step-box" id="node-report-det">
+            <span class="step-icon">🗣️</span> FEEDBACK REPORT
+            <div class="flow-step-desc">Synthesizing action summary and verbalizing response</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT FRAMEWORK -->
+  <script>
+    const API = 'http://localhost:8000';
+    let ws;
+    let recognition;
+    let micActive = false;
+
+    // Rolling history for wiggles
+    let whisperPhase = 0;
+
+    // Logging core handlers
+    function addSystemLog(tag, msg) {
+      const el = document.getElementById('systemLog');
+      if (!el) return;
+      
+      const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+      let cls = 'log-sys';
+      if (tag === 'USER') cls = 'log-user';
+      else if (tag === 'JARVIS') cls = 'log-jarvis';
+      else if (tag === 'ERR') cls = 'log-err';
+      else if (tag === 'BOOT') cls = 'log-boot';
+      
+      const div = document.createElement('div');
+      div.className = cls;
+      div.textContent = `> ${time} > [${tag}] > ${msg}`;
+      el.appendChild(div);
+      el.scrollTop = el.scrollHeight;
+    }
+    const updateLog = addSystemLog; // Alias for Web Speech error compatibility
+
+    function updateActivity(status, detail) {
+      const el = document.getElementById('codeTerminal');
+      if (!el) return;
+      const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+      const div = document.createElement('div');
+      div.innerHTML = `> [${time}] <span style="color:var(--primary-accent)">${status}</span>${detail ? ': ' + detail : ''}`;
+      el.appendChild(div);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    // Highlighting steps inside decision flowchart
+    function highlightDecisionStep(step) {
+      document.querySelectorAll('.flow-node, .flow-step-box, .flow-connector').forEach(n => {
+        n.classList.remove('active');
+      });
+
+      const nodeEl = document.getElementById('node-' + step);
+      const nodeDetEl = document.getElementById('node-' + step + '-det');
+      
+      if (nodeEl) nodeEl.classList.add('active');
+      if (nodeDetEl) nodeDetEl.classList.add('active');
+      
+      if (step === 'plan') {
+        const conn = document.getElementById('conn-1');
+        if (conn) conn.classList.add('active');
+        const arrow = document.getElementById('arrow-1');
+        if (arrow) arrow.classList.add('active');
+      } else if (step === 'act') {
+        const conn1 = document.getElementById('conn-1');
+        const conn2 = document.getElementById('conn-2');
+        if (conn1) conn1.classList.add('active');
+        if (conn2) conn2.classList.add('active');
+        const arrow1 = document.getElementById('arrow-1');
+        const arrow2 = document.getElementById('arrow-2');
+        if (arrow1) arrow1.classList.add('active');
+        if (arrow2) arrow2.classList.add('active');
+      } else if (step === 'verify') {
+        const conn1 = document.getElementById('conn-1');
+        const conn2 = document.getElementById('conn-2');
+        const conn3 = document.getElementById('conn-3');
+        if (conn1) conn1.classList.add('active');
+        if (conn2) conn2.classList.add('active');
+        if (conn3) conn3.classList.add('active');
+        const arrow1 = document.getElementById('arrow-1');
+        const arrow2 = document.getElementById('arrow-2');
+        const arrow3 = document.getElementById('arrow-3');
+        if (arrow1) arrow1.classList.add('active');
+        if (arrow2) arrow2.classList.add('active');
+        if (arrow3) arrow3.classList.add('active');
+      } else if (step === 'report') {
+        const conn3 = document.getElementById('conn-3');
+        if (conn3) conn3.classList.add('active');
+        const arrow3 = document.getElementById('arrow-3');
+        if (arrow3) arrow3.classList.add('active');
+      }
+    }
+
+    // Set dot statuses
+    function setDot(el, labelEl, state, text) {
+      if (!el) return;
+      el.className = 'dot-light ' + (state || 'red');
+      if (labelEl) {
+        labelEl.className = 'dot-value ' + (state || 'red');
+        labelEl.textContent = text || 'STANDBY';
+      }
+    }
+
+    function typeText(el, text) {
+      if (!el) return;
+      el.textContent = '';
+      let i = 0;
+      const iv = setInterval(() => {
+        el.textContent = text.slice(0, ++i);
+        if (i >= text.length) clearInterval(iv);
+      }, 15);
+    }
+
+    function updateDecisionLoop(data) {
+      document.querySelectorAll('.flow-node, .flow-step-box, .flow-connector, .flow-arrow').forEach(n => {
+        n.classList.remove('active');
+      });
+
+      const loopLabel = document.getElementById('decisionLoopText');
+
+      if (data.processing) {
+        const latest = data.activity && data.activity[0] ? data.activity[0].label.toUpperCase() : '';
+        const detail = data.activity && data.activity[0] ? data.activity[0].detail.toUpperCase() : '';
+        
+        if (latest.includes('TOOL') || latest.includes('BOT') || detail.includes('TOOL') || detail.includes('BOT') || latest.includes('ACTIVE')) {
+          document.getElementById('node-act').classList.add('active');
+          document.getElementById('node-act-det').classList.add('active');
+          document.getElementById('conn-1').classList.add('active');
+          document.getElementById('arrow-1').classList.add('active');
+          if (loopLabel) loopLabel.textContent = 'COGNITION: EXECUTING ROBOTIC COMMAND';
+        } else if (latest.includes('VERIFY') || latest.includes('CHECK') || detail.includes('VERIFY') || detail.includes('CHECK')) {
+          document.getElementById('node-verify').classList.add('active');
+          document.getElementById('node-verify-det').classList.add('active');
+          document.getElementById('conn-1').classList.add('active');
+          document.getElementById('conn-2').classList.add('active');
+          document.getElementById('arrow-1').classList.add('active');
+          document.getElementById('arrow-2').classList.add('active');
+          if (loopLabel) loopLabel.textContent = 'COGNITION: VERIFYING OUTPUT FRAMEWORK';
+        } else {
+          document.getElementById('node-plan').classList.add('active');
+          document.getElementById('node-plan-det').classList.add('active');
+          if (loopLabel) loopLabel.textContent = 'COGNITION: STRATEGIZING PLAN';
+        }
+      } else if (data.tts_speaking || data.mic_status === 'listening') {
+        document.getElementById('node-report').classList.add('active');
+        document.getElementById('node-report-det').classList.add('active');
+        document.getElementById('conn-3').classList.add('active');
+        document.getElementById('arrow-3').classList.add('active');
+        if (loopLabel) loopLabel.textContent = 'COGNITION: TRANSMITTING RESPONSE';
+      } else {
+        if (loopLabel) loopLabel.textContent = 'COGNITION: SLEEPING';
+      }
+    }
+
+    // Dynamic metrics updates
+    function updateStatus(data) {
+      setDot(document.getElementById('dOnline'), document.getElementById('vOnline'), data.system_online ? 'green' : 'red', data.system_online ? 'ONLINE' : 'OFFLINE');
+      setDot(document.getElementById('dJarvis'), document.getElementById('vJarvis'), data.jarvis_active ? 'green' : 'red', data.jarvis_active ? 'STABLE' : 'UNSTABLE');
+      const mic = data.mic_status || 'off';
+      setDot(document.getElementById('dMic'), document.getElementById('vMic'),
+        mic === 'listening' ? 'green' : mic === 'standby' ? 'yellow' : 'red',
+        mic === 'listening' ? 'LISTENING' : mic === 'standby' ? 'STANDBY' : 'MUTED');
+      setDot(document.getElementById('dTts'), document.getElementById('vTts'), data.tts_speaking ? 'green' : 'yellow', data.tts_speaking ? 'SPEAKING' : 'SILENT');
+      setDot(document.getElementById('dWake'), document.getElementById('vWake'), data.wake_detected ? 'green' : 'yellow', data.wake_detected ? 'WAKE_WORD' : 'STANDBY');
+      setDot(document.getElementById('dApi'), document.getElementById('vApi'), data.api_connected ? 'green' : 'red', data.api_connected ? 'STABLE' : 'ERROR');
+
+      // Update progress parameters
+      document.getElementById('cpuPctText').textContent = Math.round(data.cpu_percent) + '%';
+      document.getElementById('ramPctText').textContent = Math.round(data.ram_percent) + '%';
+      document.getElementById('cpuBarFill').style.width = data.cpu_percent + '%';
+      document.getElementById('ramBarFill').style.width = data.ram_percent + '%';
+
+      // Browser status activity
+      const browserUrlEl = document.getElementById('browserUrl');
+      const activeState = data.activity && data.activity[0] ? data.activity[0].label : '';
+      const activeDetail = data.activity && data.activity[0] ? data.activity[0].detail : '';
+      
+      if (activeState.includes('BOT') || activeState.includes('PROCESSING') || activeState.includes('ACTIVE')) {
+        document.getElementById('browserStatus').textContent = 'BOT_ACTIVE';
+        document.getElementById('browserStatus').style.color = 'var(--secondary-accent)';
+        document.getElementById('browserStatus').style.textShadow = '0 0 8px var(--secondary-accent)';
+        browserUrlEl.textContent = activeDetail || 'Executing search workflows...';
+      } else {
+        document.getElementById('browserStatus').textContent = 'STANDBY';
+        document.getElementById('browserStatus').style.color = 'var(--success-color)';
+        document.getElementById('browserStatus').style.textShadow = '0 0 8px var(--success-color)';
+        browserUrlEl.textContent = 'Awaiting active URL sequence...';
+      }
+
+      // Check mic active state
+      const isVoiceActive = (data.mic_status === 'listening' || data.wake_detected);
+      const wTrans = document.getElementById('whisperTrans');
+      
+      if (isVoiceActive) {
+        document.getElementById('micBtn').classList.add('active');
+        wTrans.textContent = 'Audio input streams active...';
+        wTrans.style.color = 'var(--success-color)';
+      } else {
+        document.getElementById('micBtn').classList.remove('active');
+        wTrans.textContent = 'Transcribing via Whisper...';
+        wTrans.style.color = 'var(--primary-accent)';
+      }
+
+      // Roll system logs
+      if (data.system_log) {
+        const el = document.getElementById('systemLog');
+        if (el) {
+          el.innerHTML = data.system_log.map(line => {
+            let cls = 'log-sys';
+            if (line.includes('USER')) cls = 'log-user';
+            else if (line.includes('JARVIS')) cls = 'log-jarvis';
+            else if (line.includes('ERR')) cls = 'log-err';
+            else if (line.includes('BOOT')) cls = 'log-boot';
+            return `<div class="${cls}">${line}</div>`;
+          }).reverse().join('');
+          el.scrollTop = el.scrollHeight;
+        }
+      }
+
+      // Roll core activity logs
+      if (data.activity) {
+        const el = document.getElementById('codeTerminal');
+        if (el) {
+          el.innerHTML = data.activity.map(e =>
+            `<div>> [${e.time}] <span style="color:var(--primary-accent)">${e.label}</span>${e.detail ? ': ' + e.detail : ''}</div>`
+          ).reverse().join('') || '<div>> J.A.R.V.I.S. Core Standby.</div>';
+          el.scrollTop = el.scrollHeight;
+        }
+      }
+    }
+
+    async function fetchStatus() {
+      try {
+        const r = await fetch(API + '/status');
+        const data = await r.json();
+        updateStatus(data);
+        updateDecisionLoop(data);
+      } catch (e) {
+        setDot(document.getElementById('dApi'), document.getElementById('vApi'), 'red', 'ERROR');
+      }
+    }
+
+    function connectWs() {
+      ws = new WebSocket('ws://localhost:8000/ws');
+      ws.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === 'status') {
+          updateStatus(msg.data);
+          updateDecisionLoop(msg.data);
+        }
+        if (msg.type === 'response') {
+          typeText(document.getElementById('lastResponse'), msg.text);
+        }
+        if (msg.type === 'log') fetchStatus();
+      };
+      ws.onclose = () => setTimeout(connectWs, 2000);
+    }
+
+    // PART 5 - SEND COMMAND FUNCTION FIXED
+    async function sendCommand(text) {
+        if (!text || !text.trim()) return;
+        
+        const msg = text.trim();
+        document.getElementById('commandInput').value = '';
+        
+        // Log user message immediately
+        addSystemLog('USER', msg);
+        updateActivity('PROCESSING', msg);
+        
+        // Animate decision loop - PLAN step
+        highlightDecisionStep('plan');
+        
+        try {
+            const response = await fetch('http://localhost:8000/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message: msg})
+            });
+            
+            if (!response.ok) throw new Error('Server error: ' + response.status);
+            
+            const data = await response.json();
+            const reply = data.response || data.message || 'No response';
+            
+            // Show in center display
+            document.getElementById('lastResponse').textContent = reply;
+            addSystemLog('JARVIS', reply.substring(0, 100) + '...');
+            
+            // Animate decision loop - REPORT step
+            highlightDecisionStep('report');
+            updateActivity('STANDBY', 'Ready');
+            
+        } catch (err) {
+            addSystemLog('ERR', 'Connection failed: ' + err.message);
+            updateActivity('ERROR', err.message);
+        }
+    }
+
+    // Enter key sends
+    document.getElementById('commandInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            sendCommand(document.getElementById('commandInput').value);
+        }
+    });
+
+    // Send button
+    document.getElementById('sendBtn').addEventListener('click', () => {
+        sendCommand(document.getElementById('commandInput').value);
+    });
+
+    // ==================== PART 2 — MIC INTEGRATION FIXED ====================
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    function updateMicButton(active) {
+      const btn = document.getElementById('micBtn');
+      if (!btn) return;
+      if (active) {
+        btn.classList.add('active');
+        btn.style.boxShadow = '0 0 15px var(--secondary-accent)';
+        btn.style.borderColor = 'var(--secondary-accent)';
+        btn.style.color = 'var(--secondary-accent)';
+      } else {
+        btn.classList.remove('active');
+        btn.style.boxShadow = 'none';
+        btn.style.borderColor = '#7f8c8d';
+        btn.style.color = '#bdc3c7';
+      }
+    }
+
+    function animateWaveform(active) {
+      window.waveActive = active;
+    }
+
+    function startMic() {
+      if (!SpeechRecognition) {
+        updateLog('ERR', 'Speech recognition not supported - use Chrome');
+        return;
+      }
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      
+      recognition.onstart = () => {
+        micActive = true;
+        updateMicButton(true);
+        updateLog('VOICE', 'Listening...');
+        animateWaveform(true);
+      };
+      
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        updateLog('USER', transcript);
+        document.getElementById('commandInput').value = transcript;
+        sendCommand(transcript);
+      };
+      
+      recognition.onerror = (event) => {
+        updateLog('ERR', 'Mic error: ' + event.error);
+        if (event.error === 'not-allowed') {
+          document.getElementById('micBanner').style.display = 'block';
+          alert('Microphone permission denied. Click the lock icon in Chrome address bar and allow microphone.');
+        }
+        micActive = false;
+        updateMicButton(false);
+      };
+      
+      recognition.onend = () => {
+        animateWaveform(false);
+        if (micActive) {
+          // Auto restart to keep listening
+          setTimeout(() => {
+            if (micActive) {
+              try { recognition.start(); } catch (e) {}
+            }
+          }, 300);
+        }
+      };
+      
+      recognition.start();
+    }
+
+    document.getElementById('micBtn').onclick = () => {
+      if (micActive) {
+        micActive = false;
+        if (recognition) {
+          try { recognition.stop(); } catch(e) {}
+        }
+        updateMicButton(false);
+        updateLog('VOICE', 'Microphone paused');
+      } else {
+        startMic();
+      }
+    };
+
+    window.addEventListener('load', () => {
+      setTimeout(startMic, 1000);
+    });
+
+    // Time initializers
+    function initClock() {
+      const tick = () => {
+        const d = new Date();
+        document.getElementById('clock').textContent = d.toLocaleTimeString('en-GB', { hour12: false });
+        document.getElementById('dateLine').textContent = d.toLocaleDateString('en-GB', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        }).toUpperCase();
+      };
+      tick();
+      setInterval(tick, 1000);
+    }
+
+    function initGeo() {
+      fetch('https://ipapi.co/json/')
+        .then(r => r.json())
+        .then(data => {
+          if (data.city) {
+            document.getElementById('locCity').textContent = data.city.toUpperCase();
+            document.getElementById('locCoords').textContent = `${data.latitude.toFixed(4)}° N, ${data.longitude.toFixed(4)}° E`;
+            loadWeather(data.latitude, data.longitude);
+          }
+        })
+        .catch(() => {
+          document.getElementById('locCity').textContent = 'MOCK CITY';
+          document.getElementById('locCoords').textContent = '37.7749° N, 122.4194° W';
+          loadWeather(37.7749, -122.4194);
+        });
+    }
+
+    async function loadWeather(lat, lon) {
+      try {
+        const w = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max`
+        ).then(r => r.json());
+        const t = w.current?.temperature_2m;
+        const code = w.current?.weather_code;
+        const cond = { 0: 'Clear', 1: 'Clear', 2: 'Partly Cloudy', 3: 'Overcast',
+          45: 'Fog', 61: 'Rain', 80: 'Showers' }[code] || 'Variable';
+        
+        document.getElementById('weather').textContent =
+          `WEATHER: ${cond.toUpperCase()} — ${t != null ? Math.round(t) + '°C' : '—'}`;
+        
+        const fRow = document.getElementById('forecastRow');
+        if (fRow && w.daily) {
+          const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+          let html = '';
+          for (let i = 0; i < 5; i++) {
+            const dateObj = new Date();
+            dateObj.setDate(dateObj.getDate() + i);
+            const dayName = days[dateObj.getDay()];
+            const weatherIcon = { 0: '☀️', 1: '☀️', 2: '⛅', 3: '☁️', 45: '🌫️', 61: '🌧️', 80: '🌧️' }[w.daily.weather_code[i]] || '⛅';
+            const temp = Math.round(w.daily.temperature_2m_max[i]);
+            html += `<div class="forecast-day"><span>${dayName}</span><span>${weatherIcon}</span><span>${temp}°C</span></div>`;
+          }
+          fRow.innerHTML = html;
+        }
+      } catch (_) {
+        document.getElementById('weather').textContent = 'WEATHER: UNSTABLE MATRIX';
+      }
+    }
+
+    // Canvas drawing waveforms
+    function drawWhisperWaveform(isActive) {
+      const canvas = document.getElementById('whisperWaveCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.lineWidth = 1.8;
+      ctx.shadowBlur = 6;
+
+      const lines = 3;
+      const colors = ['rgba(0, 212, 255, 0.85)', 'rgba(255, 107, 53, 0.55)', 'rgba(123, 47, 255, 0.35)'];
+      const amp = isActive ? 18 : 3;
+      const speed = isActive ? 0.25 : 0.03;
+
+      for (let i = 0; i < lines; i++) {
+        ctx.strokeStyle = colors[i];
+        ctx.shadowColor = colors[i];
+        ctx.beginPath();
+        
+        const freq = 0.02 + i * 0.01;
+        const shift = i * 3.5 + whisperPhase;
+
+        for (let x = 0; x < w; x++) {
+          const y = h / 2 + Math.sin(x * freq + shift) * amp * Math.cos(x * 0.003);
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+      whisperPhase += speed;
+    }
+
+    function loop() {
+      const waveActive = document.getElementById('micBtn').classList.contains('active');
+      drawWhisperWaveform(waveActive);
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // Initializers on load
+    initClock();
+    initGeo();
+    connectWs();
+    fetchStatus();
+    setInterval(fetchStatus, 2500);
+
+    // Fetch dynamic profile Workspace parameters
+    fetch(API + '/profile')
+      .then(r => r.json())
+      .then(p => {
+        if (p.name) document.getElementById('profName').textContent = p.name;
+        if (p.title) document.getElementById('profTitle').textContent = p.title;
+        if (p.skills && p.skills.cloud) {
+          const tags = p.skills.cloud.map(s => `<span class="skill-tag">${s}</span>`).join('');
+          document.getElementById('profSkills').innerHTML = tags;
+        }
+      }).catch(() => {});
+  </script>
+</body>
+</html>

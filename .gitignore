@@ -1,0 +1,8 @@
+.env
+memory/linkedin_cookies.json
+memory/chrome_profile/
+memory/jobs.db
+__pycache__/
+venv/
+*.pdf
+memory/overleaf_cookies.json

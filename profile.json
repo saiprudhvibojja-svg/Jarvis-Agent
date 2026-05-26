@@ -1,0 +1,18 @@
+{
+  "name": "Sai Prudhvi",
+  "title": "Integration Architect",
+  "email": "sai.prudhvi@example.com",
+  "phone": "+1 555-0199",
+  "years_of_experience": 3,
+  "skills": {
+    "cloud": [
+      "Azure",
+      "Python",
+      "FastAPI",
+      "Dynamics 365"
+    ]
+  },
+  "overleaf": {
+    "project_url": "https://www.overleaf.com/project/663cd5284824d57c3d4f8fb2"
+  }
+}
